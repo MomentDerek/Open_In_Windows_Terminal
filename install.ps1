@@ -65,7 +65,7 @@ if(Test-Path -Path $env:TEMP\windows_terminal_nonadmin_current_dir.temp -PathTyp
         if ((Get-Content $PROFILE -Raw).IndexOf("#===Open in Windows Terminal start===#") -ge 0)
         {
             $tmp_content = (Get-Content $PROFILE -Raw) -replace '(?sm)^#===Open in Windows Terminal start===#\r?$.*^#===Open in Windows Terminal end===#\r?$', $profile_lines
-            $tmp_content | Out-File $PROFILE -Force
+            $tmp_content | Out-File -Encoding "UTF8" $PROFILE -Force
             echo "reflash the profile"
         }
         # If profile exists but doesn't contain the corresponding code
@@ -74,7 +74,8 @@ if(Test-Path -Path $env:TEMP\windows_terminal_nonadmin_current_dir.temp -PathTyp
             # The whole profile could take some time to run. We need to put our code at the beginning of the profile
             # so that it can quickly determine if reopen is necessary and avoid the performance penalty.
             echo "find the profile which is set by User, please check"
-            waitForKdy (Get-Content $PROFILE)
+            Get-Content $PROFILE
+            waitForKdy "press enter to continue"
             PrependTo-File -file $PROFILE -content $profile_lines
         }
     }
@@ -82,7 +83,7 @@ if(Test-Path -Path $env:TEMP\windows_terminal_nonadmin_current_dir.temp -PathTyp
     $preScript_lines = @'
 #===Open in Windows Terminal PreScript start===#
 # More info: https://github.com/MomentDerek/Open_In_Windows_Terminal
-param($where)
+param($destination)
 
 if (Test-Path $env:TEMP\windows_terminal_current_dir.temp) { 
     Remove-Item -Path $env:TEMP\windows_terminal_current_dir.temp -Force 
@@ -90,14 +91,15 @@ if (Test-Path $env:TEMP\windows_terminal_current_dir.temp) {
 if (Test-Path $env:TEMP\windows_terminal_nonadmin_current_dir.temp.temp) {
     Remove-Item -Path $env:TEMP\windows_terminal_nonadmin_current_dir.temp -Force 
 }
-Out-File -FilePath "$env:TEMP\windows_terminal_nonadmin_current_dir.temp" -InputObject $where;
+$destination = $destination -replace """",""
+Out-File -FilePath "$env:TEMP\windows_terminal_nonadmin_current_dir.temp" -InputObject $destination;
 Start-Process shell:appsFolder\Microsoft.WindowsTerminal_8wekyb3d8bbwe!App
 #===Open in Windows Terminal PreScript end===#
 '@
     $preScript_admin_lines = @'
 #===Open in Windows Terminal PreScript By admin start===#
 # More info: https://github.com/MomentDerek/Open_In_Windows_Terminal
-param($where)
+param($destination)
 
 if (Test-Path $env:TEMP\windows_terminal_current_dir.temp) { 
     Remove-Item -Path $env:TEMP\windows_terminal_current_dir.temp -Force 
@@ -105,7 +107,8 @@ if (Test-Path $env:TEMP\windows_terminal_current_dir.temp) {
 if (Test-Path $env:TEMP\windows_terminal_nonadmin_current_dir.temp) {
     Remove-Item -Path $env:TEMP\windows_terminal_nonadmin_current_dir.temp -Force 
 }
-Out-File -FilePath "$env:TEMP\windows_terminal_current_dir.temp" -InputObject $where;
+$destination = $destination -replace """",""
+Out-File -FilePath "$env:TEMP\windows_terminal_current_dir.temp" -InputObject $destination;
 Start-Process shell:appsFolder\Microsoft.WindowsTerminal_8wekyb3d8bbwe!App
 #===Open in Windows Terminal PreScript By admin end===#
 '@
@@ -174,24 +177,24 @@ Windows Registry Editor Version 5.00
 @="Open Windows Terminal Here By Admin"
 "Icon"="windows_terminal_path,0"
 [HKEY_CLASSES_ROOT\*\shell\WindowsTerminalByAdmin\command]
-@="powershell -WindowStyle hidden -NoProfile -File \"powershell_preScript_admin_path\" %V"
+@="powershell -WindowStyle hidden -NoProfile -File \"powershell_preScript_admin_path\" \"%V\""
 ; show in context menu when right click empty area of explorer
 [HKEY_CLASSES_ROOT\Directory\Background\shell\WindowsTerminalByAdmin]
 @="Open Windows Terminal Here By Admin"
 "Icon"="windows_terminal_path,0"
 [HKEY_CLASSES_ROOT\Directory\Background\shell\WindowsTerminalByAdmin\command]
-@="powershell -WindowStyle hidden -NoProfile -File \"powershell_preScript_admin_path\" %V"
+@="powershell -WindowStyle hidden -NoProfile -File \"powershell_preScript_admin_path\" \"%V\""
 ; show in context menu when right click directory
 [HKEY_CLASSES_ROOT\Directory\shell\WindowsTerminalByAdmin]
 @="Open Windows Terminal Here By Admin"
 "Icon"="windows_terminal_path,0"
 [HKEY_CLASSES_ROOT\Directory\shell\WindowsTerminalByAdmin\command]
-@="powershell -WindowStyle hidden -NoProfile -File \"powershell_preScript_admin_path\" %V"
+@="powershell -WindowStyle hidden -NoProfile -File \"powershell_preScript_admin_path\" \"%V\""
 '@
     
     $registry = $registry -replace "windows_terminal_path", ($windows_terminal_path -replace "\\", "\\")
     $registry = $registry -replace "powershell_preScript_admin_path", ($preScript_path_admin -replace "\\","\\")
-    $wt_reg = Join-Path -Path (Split-Path -Path $script:MyInvocation.MyCommand.Path -Parent) -ChildPath "wt.reg"
+    $wt_reg = Join-Path -Path (Split-Path -Path $script:MyInvocation.MyCommand.Path -Parent) -ChildPath "wt_admin.reg"
     $registry | Out-File -FilePath $wt_reg -Force
     echo ""
     echo "The registry of Admin one:"
@@ -202,7 +205,7 @@ Windows Registry Editor Version 5.00
     $registry = $registry -replace "PowerShell_openByAdmin.ps1", "PowerShell_openByNoAdmin.ps1"
     $registry = $registry -replace " By Admin", ""
 
-    $wt_reg = Join-Path -Path (Split-Path -Path $script:MyInvocation.MyCommand.Path -Parent) -ChildPath "wt_nonadmin.reg"
+    $wt_reg = Join-Path -Path (Split-Path -Path $script:MyInvocation.MyCommand.Path -Parent) -ChildPath "wt.reg"
     $registry | Out-File -FilePath $wt_reg -Force
     echo ""
     echo "The registry of NoAdmin one:"
