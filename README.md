@@ -1,0 +1,2 @@
+# Open_In_Windows_Terminal
+ adapted from yangshuairocks/Open_in_Windows_Terminal
